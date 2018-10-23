@@ -9,6 +9,10 @@ from scipy.spatial.distance import pdist, cdist, squareform
 
 # lid of a batch of query points X
 def mle_batch(data, batch, k):
+    '''
+    commpute lid score using data & batch with k-neighbors
+    return: a: computed LID score
+    '''
     data = np.asarray(data, dtype=np.float32)
     batch = np.asarray(batch, dtype=np.float32)
 
@@ -23,9 +27,7 @@ def mle_batch(data, batch, k):
 def merge_and_generate_labels(X_pos, X_neg):
     """
     merge positve and nagative artifact and generate labels
-    :param X_pos: positive samples
-    :param X_neg: negative samples
-    :return: X: merged samples, 2D ndarray
+    return: X: merged samples, 2D ndarray
              y: generated labels (0/1): 2D ndarray same size as X
     """
     X_pos = np.asarray(X_pos, dtype=np.float32)
@@ -43,7 +45,7 @@ def merge_and_generate_labels(X_pos, X_neg):
 def sample_estimator(model, num_classes, feature_list, train_loader):
     """
     compute sample mean and precision (inverse of covariance)
-    :return: sample_class_mean: list of class mean
+    return: sample_class_mean: list of class mean
              precision: list of precisions
     """
     import sklearn.covariance
@@ -121,9 +123,11 @@ def sample_estimator(model, num_classes, feature_list, train_loader):
 
     return sample_class_mean, precision
 
-
-
 def get_Mahalanobis_score(model, test_loader, num_classes, outf, out_flag, net_type, sample_mean, precision, layer_index, magnitude):
+    '''
+    Compute the proposed Mahalanobis confidence score on input dataset
+    return: Mahalanobis score from layer_index
+    '''
     model.eval()
     Mahalanobis = []
     
@@ -143,6 +147,7 @@ def get_Mahalanobis_score(model, test_loader, num_classes, outf, out_flag, net_t
         out_features = out_features.view(out_features.size(0), out_features.size(1), -1)
         out_features = torch.mean(out_features, 2)
         
+        # compute Mahalanobis score
         gaussian_score = 0
         for i in range(num_classes):
             batch_sample_mean = sample_mean[layer_index][i]
@@ -196,6 +201,10 @@ def get_Mahalanobis_score(model, test_loader, num_classes, outf, out_flag, net_t
     return Mahalanobis
 
 def get_posterior(model, net_type, test_loader, magnitude, temperature, outf, out_flag):
+    '''
+    Compute the maximum value of (processed) posterior distribution - ODIN
+    return: null
+    '''
     criterion = nn.CrossEntropyLoss()
     model.eval()
     total = 0
@@ -249,57 +258,11 @@ def get_posterior(model, net_type, test_loader, magnitude, temperature, outf, ou
     f.close()
     g.close()
     
-    
-def get_posterior_FGSM(model, net_type, total_data, magnitude, temperature, outf, out_flag):
-    criterion = nn.CrossEntropyLoss()
-    model.eval()
-    if out_flag == True:
-        temp_file_name_val = '%s/confidence_PoV_In.txt'%(outf)
-    else:
-        temp_file_name_val = '%s/confidence_PoV_Out.txt'%(outf)
-        
-    g = open(temp_file_name_val, 'w')
-    
-    batch_size = 100
-    total = 0
-    for data_index in range(int(np.floor(total_data.size(0)/batch_size))):
-        data = total_data[total : total + batch_size].cuda()
-        data = Variable(data, requires_grad = True)
-        batch_output = model(data)
-        total += batch_size
-        
-        # temperature scaling
-        outputs = batch_output / temperature
-        labels = outputs.data.max(1)[1]
-        labels = Variable(labels)
-        loss = criterion(outputs, labels)
-        loss.backward()
-
-        # Normalizing the gradient to binary in {0, 1}
-        gradient =  torch.ge(data.grad.data, 0)
-        gradient = (gradient.float() - 0.5) * 2
-        if net_type == 'densenet':
-            gradient.index_copy_(1, torch.LongTensor([0]).cuda(), gradient.index_select(1, torch.LongTensor([0]).cuda()) / (63.0/255.0))
-            gradient.index_copy_(1, torch.LongTensor([1]).cuda(), gradient.index_select(1, torch.LongTensor([1]).cuda()) / (62.1/255.0))
-            gradient.index_copy_(1, torch.LongTensor([2]).cuda(), gradient.index_select(1, torch.LongTensor([2]).cuda()) / (66.7/255.0))
-        elif net_type == 'resnet':
-            gradient.index_copy_(1, torch.LongTensor([0]).cuda(), gradient.index_select(1, torch.LongTensor([0]).cuda()) / (0.2023))
-            gradient.index_copy_(1, torch.LongTensor([1]).cuda(), gradient.index_select(1, torch.LongTensor([1]).cuda()) / (0.1994))
-            gradient.index_copy_(1, torch.LongTensor([2]).cuda(), gradient.index_select(1, torch.LongTensor([2]).cuda()) / (0.2010))
-
-        tempInputs = torch.add(data.data,  -magnitude, gradient)
-        outputs = model(Variable(tempInputs, volatile=True))
-        outputs = outputs / temperature
-        soft_out = F.softmax(outputs, dim=1)
-        soft_out, _ = torch.max(soft_out.data, dim=1)
-
-        for i in range(data.size(0)):
-            g.write("{}\n".format(soft_out[i]))
-
-    g.close()
-    
-    
 def get_Mahalanobis_score_adv(model, test_data, test_label, num_classes, outf, net_type, sample_mean, precision, layer_index, magnitude):
+    '''
+    Compute the proposed Mahalanobis confidence score on adversarial samples
+    return: Mahalanobis score from layer_index
+    '''
     model.eval()
     Mahalanobis = []
     batch_size = 100
@@ -365,6 +328,10 @@ def get_Mahalanobis_score_adv(model, test_data, test_label, num_classes, outf, n
 
 
 def get_LID(model, test_clean_data, test_adv_data, test_noisy_data, test_label, num_output):
+    '''
+    Compute LID score on adversarial samples
+    return: LID score
+    '''
     model.eval()  
     total = 0
     batch_size = 100
