@@ -45,3 +45,23 @@ python OOD_Generate_Mahalanobis.py --dataset cifar10 --net_type resnet --gpu 0
 # model: ResNet
 python OOD_Regression_Mahalanobis.py --net_type resnet
 ```
+
+## Detecting Adversarial Samples (LID & Mahalanobis detector)
+
+### 0. Generate adversarial samples:
+```
+# model: ResNet, in-distribution: CIFAR-10, adversarial attack: FGSM  gpu: 0
+python ADV_Samples.py --dataset cifar10 --net_type resnet --adv_type FGSM --gpu 0
+```
+
+### 1. Extract detection characteristics:
+```
+# model: ResNet, in-distribution: CIFAR-10, adversarial attack: FGSM  gpu: 0
+python ADV_Generate_LID_Mahalanobis.py --dataset cifar10 --net_type resnet --adv_type FGSM --gpu 0
+```
+
+### 2. Train simple detectors:
+```
+# model: ResNet
+python ADV_Regression.py --net_type resnet
+```
